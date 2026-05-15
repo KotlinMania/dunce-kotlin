@@ -15,8 +15,9 @@ package io.github.kotlinmania.dunce
  * when they can't be unambiguously expressed in a simpler way. This allows legacy programs
  * to access all paths they can possibly access, and UNC-aware programs to access all paths.
  *
- * On non-Windows platforms these functions leave paths unmodified, so it's safe to use them
- * unconditionally for all platforms.
+ * The [simplified] function operates on path strings regardless of the current platform:
+ * it strips the `\\?\` prefix whenever the result is unambiguous, and leaves all other paths
+ * unmodified. It is safe to call on any platform.
  *
  * Parsing is based on <https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx>
  *
