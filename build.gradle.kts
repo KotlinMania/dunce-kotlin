@@ -1,6 +1,8 @@
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.tasks.ClasspathNormalizer
 import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.ClasspathNormalizer
+import org.gradle.api.tasks.testing.AbstractTestTask
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
@@ -48,25 +50,47 @@ kotlin {
     val xcf = XCFramework("Dunce")
 
     macosArm64 {
-        binaries.framework {
-            baseName = "Dunce"
-            xcf.add(this)
-        }
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
     }
-    linuxX64()
-    mingwX64()
     iosArm64 {
-        binaries.framework {
-            baseName = "Dunce"
-            xcf.add(this)
-        }
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
     }
     iosSimulatorArm64 {
-        binaries.framework {
-            baseName = "Dunce"
-            xcf.add(this)
-        }
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
     }
+    iosX64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+
+    tvosArm64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+    tvosSimulatorArm64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+
+    watchosArm32 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+    watchosArm64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+    watchosDeviceArm64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+    watchosSimulatorArm64 {
+        binaries.framework { baseName = "Dunce"; xcf.add(this) }
+    }
+
+    linuxX64()
+    linuxArm64()
+    mingwX64()
+
+    androidNativeArm32()
+    androidNativeArm64()
+    androidNativeX86()
+    androidNativeX64()
+
     js {
         browser()
         nodejs()
@@ -74,6 +98,10 @@ kotlin {
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
+        nodejs()
+    }
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmWasi {
         nodejs()
     }
 
@@ -102,7 +130,6 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
             }
         }
-
         val commonTest by getting { dependencies { implementation(kotlin("test")) } }
 
         val posixMainPath = "src/posixMain/kotlin"
@@ -114,12 +141,30 @@ kotlin {
     jvmToolchain(21)
 }
 
+tasks.withType<AbstractTestTask>().configureEach {
+    testLogging {
+        events(
+            TestLogEvent.STARTED,
+            TestLogEvent.PASSED,
+            TestLogEvent.SKIPPED,
+            TestLogEvent.FAILED,
+            TestLogEvent.STANDARD_OUT,
+            TestLogEvent.STANDARD_ERROR,
+        )
+        exceptionFormat = TestExceptionFormat.FULL
+        showCauses = true
+        showExceptions = true
+        showStackTraces = true
+        showStandardStreams = true
+    }
+}
+
 rootProject.extensions.configure<NodeJsEnvSpec>("kotlinNodeJsSpec") {
-    version.set("22.22.2")
+    version.set("24.15.0")
 }
 
 rootProject.extensions.configure<WasmNodeJsEnvSpec>("kotlinWasmNodeJsSpec") {
-    version.set("22.22.2")
+    version.set("24.15.0")
 }
 
 rootProject.extensions.configure<YarnRootEnvSpec>("kotlinYarnSpec") {
@@ -206,17 +251,13 @@ mavenPublishing {
     }
 }
 
-// ---- CodeQL Kotlin extraction task ----
+// ---------------------------------------------------------------------------
+// CodeQL Java/Kotlin extraction task
 //
-// CodeQL's Kotlin extraction hooks the legacy `K2JVMCompiler.doExecute(...)`
-// compilation path via `codeql-java-agent.jar`. Kotlin's multiplatform
-// `compileKotlinJvm` engages the phased K2 pipeline that bypasses this entry
-// point, so a KMP compile can produce zero Kotlin TRAP. The CI CodeQL workflow
-// runs `./gradlew codeqlCompileJvm` under JAVA_TOOL_OPTIONS=-javaagent:... so
-// this JavaExec subprocess triggers Kotlin extraction reliably.
-
+// .github/workflows/codeql.yml invokes `./gradlew codeqlCompileJvm` to feed
+// kotlinc-compiled commonMain through the CodeQL Java agent.
 val codeqlKotlinc: Configuration by configurations.creating {
-    description = "Kotlin compiler (CodeQL extraction only — not published)"
+    description = "Kotlin compiler (CodeQL extraction target only — not published)"
     isCanBeResolved = true
     isCanBeConsumed = false
 }
@@ -229,7 +270,6 @@ val codeqlSourceClasspath: Configuration by configurations.creating {
 
 dependencies {
     codeqlKotlinc("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.21")
-
     codeqlSourceClasspath("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
     codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
     codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0")
@@ -238,66 +278,33 @@ dependencies {
     codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-collections-immutable-jvm:0.4.0")
 }
 
-tasks.register<JavaExec>("codeqlCompileJvm") {
+val codeqlCompileJvm = tasks.register<JavaExec>("codeqlCompileJvm") {
     description =
-        "Compile commonMain Kotlin sources with kotlinc 2.3.21 for CodeQL Java/Kotlin extraction. " +
-            "Not part of any published artifact; intended to be wrapped by `codeql database create` " +
-            "or `github/codeql-action/init`."
+        "Compile commonMain Kotlin sources with kotlinc 2.3.21 for CodeQL Java/Kotlin extraction."
     group = "verification"
 
     classpath(codeqlKotlinc)
     mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
 
     val outDir = layout.buildDirectory.dir("classes/kotlin/codeql-jvm")
-    val sourcesRoot = layout.projectDirectory.dir("src/commonMain/kotlin")
-    val sources = fileTree(sourcesRoot) { include("**/*.kt") }
-    val rewrittenSourcesDir = layout.buildDirectory.dir("generated/codeql-commonMain")
+    val sources = fileTree("src/commonMain/kotlin") { include("**/*.kt") }
     val sentinelDir = layout.buildDirectory.dir("generated/codeql-empty-source")
-
     inputs.files(sources).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.files(codeqlSourceClasspath).withNormalizer(ClasspathNormalizer::class.java)
     outputs.dir(outDir)
-    outputs.dir(rewrittenSourcesDir)
     outputs.dir(sentinelDir)
 
     doFirst {
         outDir.get().asFile.mkdirs()
-
-        val rewrittenDir = rewrittenSourcesDir.get().asFile
-        rewrittenDir.deleteRecursively()
-        rewrittenDir.mkdirs()
-
-        val expectToJvmActualRegex =
-            Regex("""(?m)^\s*internal\s+expect\s+fun\s+fsCanonicalize\(path:\s*String\):\s*String\s*$""")
-
-        for (sourceFile in sources.files) {
-            val relativePath = sourceFile.relativeTo(sourcesRoot.asFile).path
-            val targetFile = rewrittenDir.resolve(relativePath)
-            targetFile.parentFile.mkdirs()
-            val text = sourceFile.readText()
-
-            targetFile.writeText(
-                if (sourceFile.name == "Lib.kt") {
-                    text.replace(
-                        expectToJvmActualRegex,
-                        "internal fun fsCanonicalize(path: String): String = java.io.File(path).canonicalPath",
-                    )
-                } else {
-                    text
-                },
-            )
-        }
-
-        val rewrittenSources = fileTree(rewrittenDir) { include("**/*.kt") }
-        val sourceFiles = rewrittenSources.files.toMutableList()
+        val sourceFiles = sources.files.toMutableList()
         if (sourceFiles.isEmpty()) {
-            val sentinelFile =
-                sentinelDir.get().asFile.resolve("io/github/kotlinmania/codeql/_CodeqlEmptySource.kt")
+            val sentinelFile = sentinelDir.get().asFile.resolve("io/github/kotlinmania/codeql/_CodeqlEmptySource.kt")
             sentinelFile.parentFile.mkdirs()
             sentinelFile.writeText(
                 """
-                // Auto-generated. Present so codeqlCompileJvm has at least one Kotlin source to feed
-                // kotlinc; replaced by real commonMain content once porting begins.
+                // Auto-generated. Present so codeqlCompileJvm has at least
+                // one Kotlin source to feed kotlinc; replaced by real
+                // commonMain content once porting begins.
                 package io.github.kotlinmania.codeql
 
                 private object _CodeqlEmptySource
@@ -305,39 +312,39 @@ tasks.register<JavaExec>("codeqlCompileJvm") {
             )
             sourceFiles += sentinelFile
         }
-
-        args =
-            listOf(
-                "-d",
-                outDir.get().asFile.absolutePath,
-                "-classpath",
-                codeqlSourceClasspath.asPath,
-                "-jvm-target",
-                "21",
-                "-no-stdlib",
-                "-no-reflect",
-                "-language-version",
-                "2.3",
-                "-api-version",
-                "2.3",
-                "-opt-in",
-                "kotlin.time.ExperimentalTime",
-                "-opt-in",
-                "kotlin.concurrent.atomics.ExperimentalAtomicApi",
-                "-Xexpect-actual-classes",
-            ) + sourceFiles.map { it.absolutePath }
+        args = listOf(
+            "-d", outDir.get().asFile.absolutePath,
+            "-classpath", codeqlSourceClasspath.asPath,
+            "-jvm-target", "21",
+            "-no-stdlib",
+            "-no-reflect",
+            "-language-version", "2.3",
+            "-api-version", "2.3",
+            "-Xexpect-actual-classes",
+            "-opt-in", "kotlin.time.ExperimentalTime",
+            "-opt-in", "kotlin.concurrent.atomics.ExperimentalAtomicApi",
+        ) + sourceFiles.map { it.absolutePath }
     }
+}
+
+tasks.register<Exec>("setupAndroidSdk") {
+    group = "setup"
+    description = "Downloads and configures the project-local Android SDK."
+    commandLine("./setup-android-sdk.sh")
 }
 
 tasks.register("test") {
     group = "verification"
     description =
-        "Runs a portable test suite (macOS + JS + WasmJS). Android and non-host native targets are intentionally excluded."
+        "Runs the host-portable test suite (macOS + JS + WasmJS + Android unit). " +
+        "Non-host native targets (mingwX64, linuxX64) only run on their own host."
 
     val defaultTestTasks = listOf(
         "macosArm64Test",
         "jsNodeTest",
         "wasmJsNodeTest",
+        "compileAndroidMain",
+        "assembleUnitTest",
     )
 
     dependsOn(defaultTestTasks.mapNotNull { taskName -> tasks.findByName(taskName) })
