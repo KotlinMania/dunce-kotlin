@@ -20,7 +20,7 @@ This is an **in-progress port**. The goal is feature parity with the upstream Ru
 
 ```kotlin
 dependencies {
-    implementation("io.github.kotlinmania:dunce-kotlin:0.1.0-SNAPSHOT")
+    implementation("io.github.kotlinmania:dunce-kotlin:0.1.0")
 }
 ```
 
@@ -47,7 +47,7 @@ See [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md) for translator discipline,
 
 ### License
 
-This Kotlin port is distributed under the same CC0-1.0 license as the upstream [`upstream/dunce`](https://gitlab.com/kornelski/dunce). See [LICENSE](LICENSE) (and any sibling `LICENSE-*` / `NOTICE` files mirrored from upstream) for the full text.
+This Kotlin port is distributed under the Apache-2.0 license. See [LICENSE](LICENSE) for the full text.
 
 Original work copyrighted by the dunce authors.  
 Kotlin port: Copyright (c) 2026 Sydney Renee and The Solace Project.

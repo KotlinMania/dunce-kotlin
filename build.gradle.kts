@@ -131,6 +131,12 @@ kotlin {
             }
         }
         val commonTest by getting { dependencies { implementation(kotlin("test")) } }
+
+        val posixMainPath = "src/posixMain/kotlin"
+        val linuxX64Main by getting { kotlin.srcDir(posixMainPath) }
+        val macosArm64Main by getting { kotlin.srcDir(posixMainPath) }
+        val iosArm64Main by getting { kotlin.srcDir(posixMainPath) }
+        val iosSimulatorArm64Main by getting { kotlin.srcDir(posixMainPath) }
     }
     jvmToolchain(21)
 }
