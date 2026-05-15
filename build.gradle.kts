@@ -1,3 +1,6 @@
+import org.gradle.api.artifacts.Configuration
+import org.gradle.api.tasks.ClasspathNormalizer
+import org.gradle.api.tasks.PathSensitivity
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
@@ -200,6 +203,129 @@ mavenPublishing {
             connection.set("scm:git:git://github.com/KotlinMania/dunce-kotlin.git")
             developerConnection.set("scm:git:ssh://github.com/KotlinMania/dunce-kotlin.git")
         }
+    }
+}
+
+// ---- CodeQL Kotlin extraction task ----
+//
+// CodeQL's Kotlin extraction hooks the legacy `K2JVMCompiler.doExecute(...)`
+// compilation path via `codeql-java-agent.jar`. Kotlin's multiplatform
+// `compileKotlinJvm` engages the phased K2 pipeline that bypasses this entry
+// point, so a KMP compile can produce zero Kotlin TRAP. The CI CodeQL workflow
+// runs `./gradlew codeqlCompileJvm` under JAVA_TOOL_OPTIONS=-javaagent:... so
+// this JavaExec subprocess triggers Kotlin extraction reliably.
+
+val codeqlKotlinc: Configuration by configurations.creating {
+    description = "Kotlin compiler (CodeQL extraction only — not published)"
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+val codeqlSourceClasspath: Configuration by configurations.creating {
+    description = "Runtime classpath for CodeQL extraction of commonMain sources"
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+dependencies {
+    codeqlKotlinc("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.21")
+
+    codeqlSourceClasspath("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+    codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0")
+    codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.11.0")
+    codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-serialization-json-jvm:1.11.0")
+    codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-datetime-jvm:0.8.0")
+    codeqlSourceClasspath("org.jetbrains.kotlinx:kotlinx-collections-immutable-jvm:0.4.0")
+}
+
+tasks.register<JavaExec>("codeqlCompileJvm") {
+    description =
+        "Compile commonMain Kotlin sources with kotlinc 2.3.21 for CodeQL Java/Kotlin extraction. " +
+            "Not part of any published artifact; intended to be wrapped by `codeql database create` " +
+            "or `github/codeql-action/init`."
+    group = "verification"
+
+    classpath(codeqlKotlinc)
+    mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
+
+    val outDir = layout.buildDirectory.dir("classes/kotlin/codeql-jvm")
+    val sourcesRoot = layout.projectDirectory.dir("src/commonMain/kotlin")
+    val sources = fileTree(sourcesRoot) { include("**/*.kt") }
+    val rewrittenSourcesDir = layout.buildDirectory.dir("generated/codeql-commonMain")
+    val sentinelDir = layout.buildDirectory.dir("generated/codeql-empty-source")
+
+    inputs.files(sources).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(codeqlSourceClasspath).withNormalizer(ClasspathNormalizer::class.java)
+    outputs.dir(outDir)
+    outputs.dir(rewrittenSourcesDir)
+    outputs.dir(sentinelDir)
+
+    doFirst {
+        outDir.get().asFile.mkdirs()
+
+        val rewrittenDir = rewrittenSourcesDir.get().asFile
+        rewrittenDir.deleteRecursively()
+        rewrittenDir.mkdirs()
+
+        val expectToJvmActualRegex =
+            Regex("""(?m)^\s*internal\s+expect\s+fun\s+fsCanonicalize\(path:\s*String\):\s*String\s*$""")
+
+        for (sourceFile in sources.files) {
+            val relativePath = sourceFile.relativeTo(sourcesRoot.asFile).path
+            val targetFile = rewrittenDir.resolve(relativePath)
+            targetFile.parentFile.mkdirs()
+            val text = sourceFile.readText()
+
+            targetFile.writeText(
+                if (sourceFile.name == "Lib.kt") {
+                    text.replace(
+                        expectToJvmActualRegex,
+                        "internal fun fsCanonicalize(path: String): String = java.io.File(path).canonicalPath",
+                    )
+                } else {
+                    text
+                },
+            )
+        }
+
+        val rewrittenSources = fileTree(rewrittenDir) { include("**/*.kt") }
+        val sourceFiles = rewrittenSources.files.toMutableList()
+        if (sourceFiles.isEmpty()) {
+            val sentinelFile =
+                sentinelDir.get().asFile.resolve("io/github/kotlinmania/codeql/_CodeqlEmptySource.kt")
+            sentinelFile.parentFile.mkdirs()
+            sentinelFile.writeText(
+                """
+                // Auto-generated. Present so codeqlCompileJvm has at least one Kotlin source to feed
+                // kotlinc; replaced by real commonMain content once porting begins.
+                package io.github.kotlinmania.codeql
+
+                private object _CodeqlEmptySource
+                """.trimIndent(),
+            )
+            sourceFiles += sentinelFile
+        }
+
+        args =
+            listOf(
+                "-d",
+                outDir.get().asFile.absolutePath,
+                "-classpath",
+                codeqlSourceClasspath.asPath,
+                "-jvm-target",
+                "21",
+                "-no-stdlib",
+                "-no-reflect",
+                "-language-version",
+                "2.3",
+                "-api-version",
+                "2.3",
+                "-opt-in",
+                "kotlin.time.ExperimentalTime",
+                "-opt-in",
+                "kotlin.concurrent.atomics.ExperimentalAtomicApi",
+                "-Xexpect-actual-classes",
+            ) + sourceFiles.map { it.absolutePath }
     }
 }
 
