@@ -15,7 +15,7 @@ plugins {
 }
 
 group = "io.github.kotlinmania"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.0"
 
 val androidSdkDir: String? =
     providers.environmentVariable("ANDROID_SDK_ROOT").orNull
@@ -101,6 +101,12 @@ kotlin {
         }
 
         val commonTest by getting { dependencies { implementation(kotlin("test")) } }
+
+        val posixMainPath = "src/posixMain/kotlin"
+        val linuxX64Main by getting { kotlin.srcDir(posixMainPath) }
+        val macosArm64Main by getting { kotlin.srcDir(posixMainPath) }
+        val iosArm64Main by getting { kotlin.srcDir(posixMainPath) }
+        val iosSimulatorArm64Main by getting { kotlin.srcDir(posixMainPath) }
     }
     jvmToolchain(21)
 }
