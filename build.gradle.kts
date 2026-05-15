@@ -132,11 +132,31 @@ kotlin {
         }
         val commonTest by getting { dependencies { implementation(kotlin("test")) } }
 
-        val posixMainPath = "src/posixMain/kotlin"
-        val linuxX64Main by getting { kotlin.srcDir(posixMainPath) }
-        val macosArm64Main by getting { kotlin.srcDir(posixMainPath) }
-        val iosArm64Main by getting { kotlin.srcDir(posixMainPath) }
-        val iosSimulatorArm64Main by getting { kotlin.srcDir(posixMainPath) }
+        val wasmWasiMain by getting {
+            dependencies {
+                implementation("org.jetbrains.kotlinx:kotlinx-io-core:0.8.2")
+            }
+        }
+
+        val posixMain by creating {
+            dependsOn(commonMain)
+        }
+        val linuxX64Main by getting { dependsOn(posixMain) }
+        val linuxArm64Main by getting { dependsOn(posixMain) }
+        val macosArm64Main by getting { dependsOn(posixMain) }
+        val iosArm64Main by getting { dependsOn(posixMain) }
+        val iosSimulatorArm64Main by getting { dependsOn(posixMain) }
+        val iosX64Main by getting { dependsOn(posixMain) }
+        val tvosArm64Main by getting { dependsOn(posixMain) }
+        val tvosSimulatorArm64Main by getting { dependsOn(posixMain) }
+        val watchosArm32Main by getting { dependsOn(posixMain) }
+        val watchosArm64Main by getting { dependsOn(posixMain) }
+        val watchosDeviceArm64Main by getting { dependsOn(posixMain) }
+        val watchosSimulatorArm64Main by getting { dependsOn(posixMain) }
+        val androidNativeArm32Main by getting { dependsOn(posixMain) }
+        val androidNativeArm64Main by getting { dependsOn(posixMain) }
+        val androidNativeX86Main by getting { dependsOn(posixMain) }
+        val androidNativeX64Main by getting { dependsOn(posixMain) }
     }
     jvmToolchain(21)
 }
@@ -268,6 +288,12 @@ val codeqlSourceClasspath: Configuration by configurations.creating {
     isCanBeConsumed = false
 }
 
+val codeqlAndroidAar: Configuration by configurations.creating {
+    description = "Android AAR artifacts for CodeQL classpath extraction (classes.jar only)"
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
 dependencies {
     codeqlKotlinc("org.jetbrains.kotlin:kotlin-compiler-embeddable:2.3.21")
     codeqlSourceClasspath("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
@@ -287,15 +313,38 @@ val codeqlCompileJvm = tasks.register<JavaExec>("codeqlCompileJvm") {
     mainClass.set("org.jetbrains.kotlin.cli.jvm.K2JVMCompiler")
 
     val outDir = layout.buildDirectory.dir("classes/kotlin/codeql-jvm")
-    val sources = fileTree("src/commonMain/kotlin") { include("**/*.kt") }
+    val aarExtractDir = layout.buildDirectory.dir("codeql/android-aar")
+    val commonSources = fileTree("src/commonMain/kotlin") { include("**/*.kt") }
+    val platformSources = fileTree("src/androidMain/kotlin") { include("**/*.kt") }
+    val sources = files(commonSources, platformSources)
     val sentinelDir = layout.buildDirectory.dir("generated/codeql-empty-source")
     inputs.files(sources).withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.files(codeqlSourceClasspath).withNormalizer(ClasspathNormalizer::class.java)
+    inputs.files(codeqlAndroidAar).withNormalizer(ClasspathNormalizer::class.java)
     outputs.dir(outDir)
+    outputs.dir(aarExtractDir)
     outputs.dir(sentinelDir)
 
     doFirst {
         outDir.get().asFile.mkdirs()
+        val extractedJars = mutableListOf<File>()
+        for (aar in codeqlAndroidAar.resolve()) {
+            val extractTarget = aarExtractDir.get().asFile.resolve(aar.nameWithoutExtension)
+            extractTarget.mkdirs()
+            copy {
+                from(zipTree(aar))
+                include("classes.jar")
+                into(extractTarget)
+            }
+            val classesJar = extractTarget.resolve("classes.jar")
+            if (classesJar.exists()) {
+                extractedJars += classesJar
+            }
+        }
+        val fullClasspath =
+            (codeqlSourceClasspath.resolve() + extractedJars)
+                .joinToString(File.pathSeparator) { it.absolutePath }
+        val commonSourceFiles = commonSources.files.toMutableList()
         val sourceFiles = sources.files.toMutableList()
         if (sourceFiles.isEmpty()) {
             val sentinelFile = sentinelDir.get().asFile.resolve("io/github/kotlinmania/codeql/_CodeqlEmptySource.kt")
@@ -310,16 +359,19 @@ val codeqlCompileJvm = tasks.register<JavaExec>("codeqlCompileJvm") {
                 private object _CodeqlEmptySource
                 """.trimIndent(),
             )
+            commonSourceFiles += sentinelFile
             sourceFiles += sentinelFile
         }
         args = listOf(
             "-d", outDir.get().asFile.absolutePath,
-            "-classpath", codeqlSourceClasspath.asPath,
+            "-classpath", fullClasspath,
             "-jvm-target", "21",
             "-no-stdlib",
             "-no-reflect",
             "-language-version", "2.3",
             "-api-version", "2.3",
+            "-Xmulti-platform",
+            "-Xcommon-sources=${commonSourceFiles.joinToString(",") { it.absolutePath }}",
             "-Xexpect-actual-classes",
             "-opt-in", "kotlin.time.ExperimentalTime",
             "-opt-in", "kotlin.concurrent.atomics.ExperimentalAtomicApi",
