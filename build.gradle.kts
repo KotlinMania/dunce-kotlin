@@ -1,5 +1,5 @@
-import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.ClasspathNormalizer
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.testing.AbstractTestTask
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
@@ -40,6 +40,7 @@ kotlin {
     sourceSets.all {
         languageSettings.optIn("kotlin.time.ExperimentalTime")
         languageSettings.optIn("kotlin.concurrent.atomics.ExperimentalAtomicApi")
+        languageSettings.optIn("kotlin.ExperimentalUnsignedTypes")
     }
 
     compilerOptions {
@@ -120,6 +121,8 @@ kotlin {
         }
     }
 
+    jvm()
+
     sourceSets {
         val commonMain by getting {
             dependencies {
@@ -130,33 +133,67 @@ kotlin {
                 implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.4.0")
             }
         }
-        val commonTest by getting { dependencies { implementation(kotlin("test")) } }
-
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+        val posixMain by creating {
+            dependsOn(commonMain)
+        }
+        val androidNativeArm32Main by getting {
+            dependsOn(posixMain)
+        }
+        val androidNativeArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val androidNativeX64Main by getting {
+            dependsOn(posixMain)
+        }
+        val androidNativeX86Main by getting {
+            dependsOn(posixMain)
+        }
+        val iosArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val iosSimulatorArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val iosX64Main by getting {
+            dependsOn(posixMain)
+        }
+        val linuxArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val linuxX64Main by getting {
+            dependsOn(posixMain)
+        }
+        val macosArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val tvosArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val tvosSimulatorArm64Main by getting {
+            dependsOn(posixMain)
+        }
         val wasmWasiMain by getting {
             dependencies {
                 implementation("org.jetbrains.kotlinx:kotlinx-io-core:0.8.2")
             }
         }
-
-        val posixMain by creating {
-            dependsOn(commonMain)
+        val watchosArm32Main by getting {
+            dependsOn(posixMain)
         }
-        val linuxX64Main by getting { dependsOn(posixMain) }
-        val linuxArm64Main by getting { dependsOn(posixMain) }
-        val macosArm64Main by getting { dependsOn(posixMain) }
-        val iosArm64Main by getting { dependsOn(posixMain) }
-        val iosSimulatorArm64Main by getting { dependsOn(posixMain) }
-        val iosX64Main by getting { dependsOn(posixMain) }
-        val tvosArm64Main by getting { dependsOn(posixMain) }
-        val tvosSimulatorArm64Main by getting { dependsOn(posixMain) }
-        val watchosArm32Main by getting { dependsOn(posixMain) }
-        val watchosArm64Main by getting { dependsOn(posixMain) }
-        val watchosDeviceArm64Main by getting { dependsOn(posixMain) }
-        val watchosSimulatorArm64Main by getting { dependsOn(posixMain) }
-        val androidNativeArm32Main by getting { dependsOn(posixMain) }
-        val androidNativeArm64Main by getting { dependsOn(posixMain) }
-        val androidNativeX86Main by getting { dependsOn(posixMain) }
-        val androidNativeX64Main by getting { dependsOn(posixMain) }
+        val watchosArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val watchosDeviceArm64Main by getting {
+            dependsOn(posixMain)
+        }
+        val watchosSimulatorArm64Main by getting {
+            dependsOn(posixMain)
+        }
     }
     jvmToolchain(21)
 }
@@ -198,6 +235,8 @@ rootProject.extensions.configure<WasmYarnRootEnvSpec>("kotlinWasmYarnSpec") {
 rootProject.extensions.configure<YarnRootExtension>("kotlinYarn") {
     resolution("diff", "8.0.3")
     resolution("**/diff", "8.0.3")
+    resolution("fast-uri", "3.1.1")
+    resolution("**/fast-uri", "3.1.1")
     resolution("serialize-javascript", "7.0.5")
     resolution("**/serialize-javascript", "7.0.5")
     resolution("webpack", "5.106.2")
@@ -354,7 +393,7 @@ val codeqlCompileJvm = tasks.register<JavaExec>("codeqlCompileJvm") {
                 // Auto-generated. Present so codeqlCompileJvm has at least
                 // one Kotlin source to feed kotlinc; replaced by real
                 // commonMain content once porting begins.
-                package io.github.kotlinmania.codeql
+                package io.github.kotlinmania.dunce.codeql
 
                 private object _CodeqlEmptySource
                 """.trimIndent(),
@@ -385,6 +424,18 @@ tasks.register<Exec>("setupAndroidSdk") {
     commandLine("./setup-android-sdk.sh")
 }
 
+// Auto-install the project-local Android SDK before any Android compile
+// when it is not already present, so a fresh checkout builds without a
+// manual setup step.
+tasks.named("setupAndroidSdk").configure {
+    onlyIf {
+        androidSdkDir == null &&
+            !rootProject.file(".android-sdk/cmdline-tools/latest/bin/sdkmanager").exists()
+    }
+}
+tasks.matching { it.name.startsWith("compile") && it.name.contains("Android") }
+    .configureEach { dependsOn("setupAndroidSdk") }
+
 tasks.register("test") {
     group = "verification"
     description =
@@ -393,6 +444,7 @@ tasks.register("test") {
 
     val defaultTestTasks = listOf(
         "macosArm64Test",
+        "jvmTest",
         "jsNodeTest",
         "wasmJsNodeTest",
         "compileAndroidMain",
@@ -400,4 +452,38 @@ tasks.register("test") {
     )
 
     dependsOn(defaultTestTasks.mapNotNull { taskName -> tasks.findByName(taskName) })
+}
+
+// The generated Wasm-WASI Node test runner cannot see the filesystem unless
+// the project directory is preopened. Patch the runner before wasmWasiNodeTest.
+val patchWasmWasiNodePreopens = tasks.register("patchWasmWasiNodePreopens") {
+    description = "Preopen the project directory for the generated Wasm-WASI Node test runner."
+    group = "verification"
+    dependsOn("compileTestDevelopmentExecutableKotlinWasmWasi")
+    outputs.upToDateWhen { false }
+
+    doLast {
+        val runnerFile = layout.buildDirectory.file(
+            "compileSync/wasmWasi/test/testDevelopmentExecutable/kotlin/${rootProject.name}-test.mjs",
+        ).get().asFile
+        if (!runnerFile.exists()) {
+            // No Wasm-WASI test runner was generated (the repo has no
+            // wasmWasi test sources), so there is nothing to preopen.
+            return@doLast
+        }
+        val text = runnerFile.readText()
+        val withCwdImport = text.replace(
+            "import { argv, env } from 'node:process';",
+            "import { argv, env, cwd } from 'node:process';",
+        )
+        val patched = withCwdImport.replace(
+            "const wasi = new WASI({ version: 'preview1', args: argv, env, });",
+            "const wasi = new WASI({ version: 'preview1', args: argv, env, preopens: { '/': cwd() }, });",
+        )
+        runnerFile.writeText(patched)
+    }
+}
+
+tasks.named("wasmWasiNodeTest") {
+    dependsOn(patchWasmWasiNodePreopens)
 }
