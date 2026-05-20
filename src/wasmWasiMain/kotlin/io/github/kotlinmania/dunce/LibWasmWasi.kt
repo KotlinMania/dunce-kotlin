@@ -12,3 +12,5 @@ internal actual fun fsCanonicalize(path: String): String =
                 cause,
             )
         }
+
+internal actual val isWindowsPathPlatform: Boolean = false

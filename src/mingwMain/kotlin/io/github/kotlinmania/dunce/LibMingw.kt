@@ -29,3 +29,5 @@ internal actual fun fsCanonicalize(path: String): String = memScoped {
     }
     buffer.toKString()
 }
+
+internal actual val isWindowsPathPlatform: Boolean = true
