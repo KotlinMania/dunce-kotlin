@@ -1,4 +1,4 @@
-// port-lint: source src/lib.rs
+// port-lint: source lib.rs
 package io.github.kotlinmania.dunce
 
 /**
@@ -52,12 +52,20 @@ public fun simplified(path: String): String =
  *
  * Throws if the underlying filesystem call fails.
  */
-public fun canonicalize(path: String): String = simplified(fsCanonicalize(path))
+public fun canonicalize(path: String): String =
+    if (isWindowsPathPlatform) canonicalizeWin(path) else fsCanonicalize(path)
 
 /** Alias of [canonicalize]. */
 public fun realpath(path: String): String = canonicalize(path)
 
 internal expect fun fsCanonicalize(path: String): String
+
+internal expect val isWindowsPathPlatform: Boolean
+
+internal fun canonicalizeWin(path: String): String {
+    val realPath = fsCanonicalize(path)
+    return if (isSafeToStripUnc(realPath)) realPath.substring(4) else realPath
+}
 
 internal fun windowsCharLen(s: String): Int = s.length
 
