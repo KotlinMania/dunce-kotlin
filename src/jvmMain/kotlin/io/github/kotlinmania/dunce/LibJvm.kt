@@ -1,4 +1,4 @@
-// port-lint: source src/lib.rs (platform glue, Android/JVM target via java.io.File)
+// port-lint: source lib.rs (platform glue, JVM target via java.io.File)
 package io.github.kotlinmania.dunce
 
 import java.io.File

@@ -1,9 +1,10 @@
-// port-lint: source src/lib.rs
+// port-lint: source lib.rs
 package io.github.kotlinmania.dunce
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class LibTest {
@@ -86,6 +87,14 @@ class LibTest {
         assertTrue(isValidFilename("a.aaaaaaaa"))
         assertTrue(isValidFilename("a........a"))
         assertTrue(isValidFilename("       b"))
+    }
+
+    @Test
+    fun realpathTest() {
+        if (!isWindowsPathPlatform) return
+
+        assertEquals("C:\\WINDOWS", canonicalize("C:\\Windows").uppercase())
+        assertNotEquals(".", canonicalize("."))
     }
 
     @Test
