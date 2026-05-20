@@ -287,7 +287,7 @@ kotlin {
         }
         val commonTest by getting {
             dependencies {
-                implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-io-core:0.9.0")
             }
         }
         val posixMain by creating {
