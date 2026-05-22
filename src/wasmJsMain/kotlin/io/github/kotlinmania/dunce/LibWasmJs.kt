@@ -5,15 +5,16 @@ package io.github.kotlinmania.dunce
 private val isNode: Boolean =
     js("typeof process !== 'undefined' && process.versions != null && process.versions.node != null")
 
-private val realpathSyncImpl: (String) -> String =
+private fun nodeRealpathSync(path: String): String? =
     js(
-        "(path) => {\n" +
-            "  const fs = require('fs');\n" +
-            "  return fs.realpathSync(path);\n" +
-            "}",
+        "{ try { var r = eval('typeof require === \"function\" ? require : null'); " +
+            "return r ? r('fs').realpathSync(path) : null; } catch (e) { return null; } }",
     )
 
 internal actual fun fsCanonicalize(path: String): String {
     if (!isNode) throw UnsupportedOperationException("dunce.canonicalize is only supported in a Node.js environment")
-    return realpathSyncImpl(path)
+    return nodeRealpathSync(path)
+        ?: throw RuntimeException("dunce.canonicalize: Node fs.realpathSync is unavailable")
 }
+
+internal actual val isWindowsPathPlatform: Boolean = false
