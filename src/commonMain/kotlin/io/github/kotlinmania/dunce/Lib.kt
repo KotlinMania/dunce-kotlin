@@ -15,9 +15,8 @@ package io.github.kotlinmania.dunce
  * when they can't be unambiguously expressed in a simpler way. This allows legacy programs
  * to access all paths they can possibly access, and UNC-aware programs to access all paths.
  *
- * The [simplified] function operates on path strings regardless of the current platform:
- * it strips the `\\?\` prefix whenever the result is unambiguous, and leaves all other paths
- * unmodified. It is safe to call on any platform.
+ * On non-Windows targets these functions leave paths unmodified, so it is safe to use them
+ * unconditionally for all platforms.
  *
  * Parsing is based on <https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx>
  *
@@ -40,6 +39,9 @@ package io.github.kotlinmania.dunce
  * if used with legacy APIs that don't support UNC.
  *
  * This function does not perform any I/O.
+ *
+ * Currently paths with unpaired surrogates aren't converted even if they
+ * could be, due to limitations of the platform path APIs.
  *
  * To check if a path remained as UNC, use `path.startsWith("\\\\")`.
  */
@@ -112,6 +114,8 @@ internal fun isReserved(fileName: String): Boolean {
 }
 
 internal fun isSafeToStripUnc(path: String): Boolean {
+    if (!isWindowsPathPlatform) return false
+
     if (path.length < 6) return false
     if (path[0] != '\\' || path[1] != '\\' || path[2] != '?' || path[3] != '\\') return false
     val drive = path[4]

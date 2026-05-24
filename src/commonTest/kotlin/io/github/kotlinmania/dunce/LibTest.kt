@@ -98,7 +98,17 @@ class LibTest {
     }
 
     @Test
+    fun simplifiedIsNoOpOnNonWindowsTargets() {
+        if (isWindowsPathPlatform) return
+
+        assertEquals("\\\\?\\C:\\foo\\😀", simplified("\\\\?\\C:\\foo\\😀"))
+        assertFalse(isSafeToStripUnc("\\\\?\\C:\\foo\\bar"))
+    }
+
+    @Test
     fun strip() {
+        if (!isWindowsPathPlatform) return
+
         assertEquals("C:\\foo\\😀", simplified("\\\\?\\C:\\foo\\😀"))
         assertEquals("\\\\?\\serv\\", simplified("\\\\?\\serv\\"))
         assertEquals("\\\\.\\C:\\notdisk", simplified("\\\\.\\C:\\notdisk"))
@@ -110,6 +120,8 @@ class LibTest {
 
     @Test
     fun safe() {
+        if (!isWindowsPathPlatform) return
+
         assertTrue(isSafeToStripUnc("\\\\?\\C:\\foo\\bar"))
         assertTrue(isSafeToStripUnc("\\\\?\\Z:\\foo\\bar\\"))
         assertTrue(isSafeToStripUnc("\\\\?\\Z:\\😀\\🎃\\"))
