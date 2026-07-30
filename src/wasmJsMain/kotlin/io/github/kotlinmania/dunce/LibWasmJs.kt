@@ -1,5 +1,7 @@
 // port-lint: source src/lib.rs (platform glue, Wasm-JS target via Node fs.realpathSync)
+
 @file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
+
 package io.github.kotlinmania.dunce
 
 private val isNode: Boolean =

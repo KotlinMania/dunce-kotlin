@@ -8,7 +8,6 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class LibTest {
-
     @Test
     fun trimTest() {
         assertEquals("a", rightTrim("a."))
