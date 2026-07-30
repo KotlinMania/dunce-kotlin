@@ -82,8 +82,15 @@ internal fun isValidFilename(fileName: String): Boolean {
     for (byte in bytes) {
         val u = byte.toInt() and 0xFF
         if (u in 0..31) return false
-        if (u == '<'.code || u == '>'.code || u == ':'.code || u == '"'.code ||
-            u == '/'.code || u == '\\'.code || u == '|'.code || u == '?'.code || u == '*'.code
+        if (u == '<'.code ||
+            u == '>'.code ||
+            u == ':'.code ||
+            u == '"'.code ||
+            u == '/'.code ||
+            u == '\\'.code ||
+            u == '|'.code ||
+            u == '?'.code ||
+            u == '*'.code
         ) {
             return false
         }
@@ -95,10 +102,31 @@ internal fun isValidFilename(fileName: String): Boolean {
     return true
 }
 
-internal val RESERVED_NAMES: Array<String> = arrayOf(
-    "AUX", "NUL", "PRN", "CON", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
-    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-)
+internal val RESERVED_NAMES: Array<String> =
+    arrayOf(
+        "AUX",
+        "NUL",
+        "PRN",
+        "CON",
+        "COM1",
+        "COM2",
+        "COM3",
+        "COM4",
+        "COM5",
+        "COM6",
+        "COM7",
+        "COM8",
+        "COM9",
+        "LPT1",
+        "LPT2",
+        "LPT3",
+        "LPT4",
+        "LPT5",
+        "LPT6",
+        "LPT7",
+        "LPT8",
+        "LPT9",
+    )
 
 internal fun isReserved(fileName: String): Boolean {
     val stem = fileStem(fileName) ?: return false

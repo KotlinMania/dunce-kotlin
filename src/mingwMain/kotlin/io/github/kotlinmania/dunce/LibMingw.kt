@@ -17,17 +17,18 @@ import platform.windows.WCHARVar
  * If the path does not exist, the call still succeeds and returns the normalized form.
  */
 @OptIn(ExperimentalForeignApi::class)
-internal actual fun fsCanonicalize(path: String): String = memScoped {
-    val needed = GetFullPathNameW(path, 0u, null, null)
-    if (needed == 0u) {
-        throw RuntimeException("dunce.canonicalize: GetFullPathNameW failed for '$path'")
+internal actual fun fsCanonicalize(path: String): String =
+    memScoped {
+        val needed = GetFullPathNameW(path, 0u, null, null)
+        if (needed == 0u) {
+            throw RuntimeException("dunce.canonicalize: GetFullPathNameW failed for '$path'")
+        }
+        val buffer = allocArray<WCHARVar>(needed.toInt())
+        val written = GetFullPathNameW(path, needed, buffer, null)
+        if (written == 0u || written >= needed) {
+            throw RuntimeException("dunce.canonicalize: GetFullPathNameW failed for '$path'")
+        }
+        buffer.toKString()
     }
-    val buffer = allocArray<WCHARVar>(needed.toInt())
-    val written = GetFullPathNameW(path, needed, buffer, null)
-    if (written == 0u || written >= needed) {
-        throw RuntimeException("dunce.canonicalize: GetFullPathNameW failed for '$path'")
-    }
-    buffer.toKString()
-}
 
 internal actual val isWindowsPathPlatform: Boolean = true
