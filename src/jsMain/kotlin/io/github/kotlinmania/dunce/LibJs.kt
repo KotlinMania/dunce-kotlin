@@ -1,13 +1,13 @@
-// port-lint: source src/lib.rs (platform glue, JS target via Node fs.realpathSync)
 package io.github.kotlinmania.dunce
 
-private val isNode: Boolean get() =
-    js("typeof process !== 'undefined' && process.versions != null && process.versions.node != null") as Boolean
+private val isNode: Boolean
+    get() = js(
+        "typeof process !== 'undefined' && process.versions != null && process.versions.node != null",
+    ) as Boolean
 
 private fun nodeRealpathSync(path: String): String? =
     js(
-        "(function(path) { try { var r = eval('typeof require === \"function\" ? require : null'); " +
-            "return r ? r('fs').realpathSync(path).toString() : null; } catch (e) { return null; } })(path)",
+        "(function(path){ try { var rq = (new Function('return typeof require === \"function\" ? require : null'))(); if (!rq) return null; return rq('fs').realpathSync(path).toString(); } catch (e) { return null; } })(path)",
     ) as String?
 
 internal actual fun fsCanonicalize(path: String): String {

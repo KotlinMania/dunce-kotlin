@@ -1,5 +1,3 @@
-// port-lint: source src/lib.rs (platform glue, Wasm-JS target via Node fs.realpathSync)
-
 @file:OptIn(kotlin.js.ExperimentalWasmJsInterop::class)
 
 package io.github.kotlinmania.dunce
@@ -9,8 +7,7 @@ private val isNode: Boolean =
 
 private fun nodeRealpathSync(path: String): String? =
     js(
-        "{ try { var r = eval('typeof require === \"function\" ? require : null'); " +
-            "return r ? r('fs').realpathSync(path) : null; } catch (e) { return null; } }",
+        "{ try { var rq = (new Function('return typeof require === \"function\" ? require : null'))(); if (!rq) return null; return rq('fs').realpathSync(path); } catch (e) { return null; } }",
     )
 
 internal actual fun fsCanonicalize(path: String): String {

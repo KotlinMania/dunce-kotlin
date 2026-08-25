@@ -1,4 +1,3 @@
-// port-lint: source src/lib.rs (platform glue, posix native targets via realpath(3))
 package io.github.kotlinmania.dunce
 
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -10,8 +9,6 @@ import platform.posix.strerror
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual fun fsCanonicalize(path: String): String {
-    // Pass null so realpath(3) allocates the exact buffer size needed, avoiding
-    // PATH_MAX limitations for paths whose resolved form exceeds that limit.
     val result = realpath(path, null)
         ?: run {
             val code = errno
