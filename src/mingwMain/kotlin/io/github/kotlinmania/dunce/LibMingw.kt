@@ -1,4 +1,3 @@
-// port-lint: source src/lib.rs (platform glue, mingw target via GetFullPathNameW)
 package io.github.kotlinmania.dunce
 
 import kotlinx.cinterop.ExperimentalForeignApi
