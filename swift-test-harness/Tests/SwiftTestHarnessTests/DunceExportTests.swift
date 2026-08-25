@@ -1,6 +1,8 @@
 import Testing
 import Dunce
 
-@Test func testSwiftModuleLoads() {
-    #expect(true)
+@Suite struct DunceExportTests {
+    @Test func testSwiftModuleLoads() {
+        #expect(Bool(true), "Dunce swift module imported cleanly")
+    }
 }
