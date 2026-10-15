@@ -1,9 +1,10 @@
 package io.github.kotlinmania.dunce
 
 private val isNode: Boolean
-    get() = js(
-        "typeof process !== 'undefined' && process.versions != null && process.versions.node != null",
-    ) as Boolean
+    get() =
+        js(
+            "typeof process !== 'undefined' && process.versions != null && process.versions.node != null",
+        ) as Boolean
 
 private fun nodeRealpathSync(path: String): String? =
     js(
